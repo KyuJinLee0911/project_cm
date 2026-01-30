@@ -1,0 +1,90 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.ssafy'
+version = '0.0.1-SNAPSHOT'
+description = 'Project for support and analyze indoor sports climbing'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // starter
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // https://mvnrepository.com/artifact/org.springframework/spring-messaging
+    implementation 'org.springframework:spring-messaging:6.2.11'
+
+    // async
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    // https://mvnrepository.com/artifact/org.apache.httpcomponents.client5/httpclient5
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.5'
+
+    // lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.projectlombok:lombok:1.18.28'
+
+    // DB
+    implementation 'org.postgresql:postgresql'
+
+    // redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // webSocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // jwt
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    // test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.hamcrest:hamcrest:3.0'
+    testImplementation 'com.h2database:h2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    implementation 'com.vladmihalcea:hibernate-types-60:2.21.1'
+    // https://mvnrepository.com/artifact/io.hypersistence/hypersistence-utils-hibernate-63
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.10.3'
+
+    // swagger
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.12'
+
+    // s3
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter:3.3.0'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3:3.3.0'
+
+
+    // .env
+    implementation 'me.paulschwarz:spring-dotenv:2.5.4'
+}
+
+tasks.named('test') {
+    systemProperty "spring.profiles.active", "test"
+    systemProperty "spring.profiles.default", "test"
+    useJUnitPlatform()
+}

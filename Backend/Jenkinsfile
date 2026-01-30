@@ -1,0 +1,170 @@
+pipeline {
+    agent any
+    environment {
+        REGISTRY = 'docker.io/kyujinlee'
+        IMAGE_NAME = 'climbmate-backend'
+        DOCKER_CRED = 'dockerhub_cred'
+        GITLAB_CRED = 'GitLab_Personal_Access_Token'
+    }
+
+    stages {
+        stage('Debug') {
+            steps {
+                script {
+                    sh 'env | grep gitlab || true'
+                }
+            }
+        }
+        //   코드 체크아웃
+        stage('Checkout') {
+            steps {
+                script {
+                    def branchToBuild = null
+
+                    if(env.gitlabActionType == 'MERGE' && env.gitlabMergeRequestState == 'opened'
+                    && env.gitlabTargetBranch == 'BE-Dev'){
+                        branchToBuild = env.gitlabSourceBranch
+                        echo 'MR Open detected -> checking out SOURCE branch. branch : ${branchToBuild}'
+                    } else if(env.gitlabActionType == 'MERGE' && env.gitlabMergeRequestState == 'merged'
+                    && env.gitlabTargetBranch == 'BE-Dev') {
+                        branchToBuild = env.gitlabTargetBranch
+                        echo "MR Merged -> Checking out TARGET branch. branch : ${branchToBuild}"
+                    } else {
+                        // 수동 빌드 or 일반 케이스: 기본 브랜치
+                        branchToBuild = 'BE-Dev'
+                        echo "Default build → Checking out branch: ${branchToBuild}"
+                    }
+
+                    git branch: branchToBuild,
+                        credentialsId: "${GITLAB_CRED}",
+                        url: 'https://lab.ssafy.com/s13-final/S13P31A203.git'
+                }
+            }
+        }
+
+        // MR open 시 테스트(CI)
+        stage('Build & Test'){
+            when {
+                expression { env.gitlabActionType == 'MERGE' }
+                expression { env.gitlabMergeRequestState == 'opened' }
+                expression { env.gitlabTargetBranch == 'BE-Dev' }
+            }
+            steps {
+
+                sh '''
+                    echo "===== Starting Redis for test ====="
+                    docker run -d --rm --name redis-test --network jenkins_default "redis:7"
+                    sleep 5
+
+                    echo "===== Running tests with active profile: test ====="
+                    export SPRING_PROFILES_ACTIVE=test
+                    chmod +x ./gradlew
+                    ./gradlew clean test --no-build-cache --info
+
+                    echo "===== Stopping Redis ====="
+                    docker stop redis-test || true
+                '''
+            }
+        }
+
+        stage('Docker Build & Push'){
+            when {
+                allOf {
+                    expression { env.gitlabActionType == 'MERGE' }
+                    expression { env.gitlabMergeRequestState == 'merged' }
+                    expression { env.gitlabTargetBranch == 'BE-Dev' }
+                }
+            }
+            steps{
+                script{
+                    sh 'chmod +x ./gradlew'
+                    // Gradle 빌드
+                    sh './gradlew clean build -x test'
+
+                    // Docker 이미지 빌드
+                    def dockerImage = docker.build("${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}")
+
+                    // Docker Hub Push
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CRED}") {
+                        dockerImage.push()
+                        dockerImage.push('latest')
+                    }
+                }
+            }
+        }
+
+        stage('Deploy via SSH'){
+            when {
+                allOf {
+                    expression { env.gitlabActionType == 'MERGE' }
+                    expression { env.gitlabMergeRequestState == 'merged' }
+                    expression { env.gitlabTargetBranch == 'BE-Dev' }
+                }
+            }
+            steps {
+                script {
+                    echo "Merge into BE-Dev accepted - starting build & deployment!"
+
+                    withCredentials([
+                        string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'JWT_ACCESS_EXPIRATION', variable: 'JWT_ACCESS_EXPIRATION'),
+                        string(credentialsId: 'JWT_REFRESH_EXPIRATION', variable: 'JWT_REFRESH_EXPIRATION'),
+                        string(credentialsId: 'POSTGRES_HOST', variable: 'POSTGRES_HOST'),
+                        string(credentialsId: 'POSTGRES_PORT', variable: 'POSTGRES_PORT'),
+                        string(credentialsId: 'POSTGRES_NAME', variable: 'POSTGRES_NAME'),
+                        string(credentialsId: 'POSTGRES_USERNAME', variable: 'POSTGRES_USERNAME'),
+                        string(credentialsId: 'POSTGRES_PASSWORD', variable: 'POSTGRES_PASSWORD'),
+                        string(credentialsId: 'REDIS_HOST', variable: 'REDIS_HOST'),
+                        string(credentialsId: 'REDIS_PORT', variable: 'REDIS_PORT'),
+                        string(credentialsId: 'REDIS_PASSWORD', variable: 'REDIS_PASSWORD'),
+                        sshUserPrivateKey(credentialsId: 'deploy-server-key', keyFileVariable: 'SSH_KEY'),
+                        string(credentialsId: 'DEPLOY_HOST', variable: 'DEPLOY_HOST'),
+                        string(credentialsId: 'COMPOSE_PATH', variable: 'COMPOSE_PATH'),
+                        string(credentialsId: 'AWS_S3_REGION', variable: 'AWS_S3_REGION'),
+                        string(credentialsId: 'AWS_S3_BUCKET', variable: 'AWS_S3_BUCKET'),
+                        string(credentialsId: 'AWS_SECRET_KEY', variable: 'AWS_SECRET_KEY'),
+                        string(credentialsId: 'AWS_ACCESS_KEY', variable: 'AWS_ACCESS_KEY'),
+                        string(credentialsId: 'AI_BASE_URL', variable: 'AI_BASE_URL')
+                    ]) {
+                        sh """
+                            chmod 600 "$SSH_KEY"
+                            ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${DEPLOY_HOST} '
+                                set -e
+                                export JWT_SECRET="${JWT_SECRET}"
+                                export JWT_ACCESS_EXPIRATION="${JWT_ACCESS_EXPIRATION}"
+                                export JWT_REFRESH_EXPIRATION="${JWT_REFRESH_EXPIRATION}"
+                                export POSTGRES_HOST="${POSTGRES_HOST}"
+                                export POSTGRES_PORT="${POSTGRES_PORT}"
+                                export POSTGRES_NAME="${POSTGRES_NAME}"
+                                export POSTGRES_USERNAME="${POSTGRES_USERNAME}"
+                                export POSTGRES_PASSWORD="${POSTGRES_PASSWORD}"
+                                export REDIS_HOST="${REDIS_HOST}"
+                                export REDIS_PORT="${REDIS_PORT}"
+                                export REDIS_PASSWORD="${REDIS_PASSWORD}"
+                                export AWS_ACCESS_KEY="${AWS_ACCESS_KEY}"
+                                export AWS_SECRET_KEY="${AWS_SECRET_KEY}"
+                                export AWS_S3_BUCKET="${AWS_S3_BUCKET}"
+                                export AWS_S3_REGION="${AWS_S3_REGION}"
+                                export AI_BASE_URL="${AI_BASE_URL}"
+
+                                docker pull ${REGISTRY}/${IMAGE_NAME}:latest
+                                docker compose -f ${COMPOSE_PATH} up -d --no-build
+                            '
+                        """
+                    }
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Please check Jenkins logs.'
+        }
+        always {
+            echo 'Pipeline completed successfully!'
+        }
+    }
+}
