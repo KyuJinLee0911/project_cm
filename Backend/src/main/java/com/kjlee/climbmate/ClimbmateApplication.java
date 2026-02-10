@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 @EnableJpaAuditing
 @SpringBootApplication
-public class A203Application {
+public class ClimbmateApplication {
 
     @PostConstruct
     public void started() {
@@ -16,7 +16,7 @@ public class A203Application {
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(A203Application.class, args);
+        SpringApplication.run(ClimbmateApplication.class, args);
     }
 
 }

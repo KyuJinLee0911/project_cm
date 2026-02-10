@@ -1,0 +1,9 @@
+AI/video/
+AI/model/
+AI/photo/
+AI/**/__pycache__/
+AI/data/
+AI/**/outputs/
+AI/**/output_with_holds_events
+BACKEND/**/__pycache__/
+BACKEND/ai/

@@ -15,7 +15,7 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     Optional<Video> findVideoByIdAndDeletedAtIsNull(Long videoId);
 
     @Query("""
-            SELECT new com.ssafy.a203.domain.video.dto.response.VideoInfoResponse(
+            SELECT new com.kjlee.climbmate.domain.video.dto.response.VideoInfoResponse(
             v.id, v.createdAt, COALESCE(v.isAnalyzed, false),
             COALESCE(ei.isSuccesses, false), v.tFileKey
             )
@@ -28,7 +28,7 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     List<VideoInfoResponse> findAllByUserId(Long userId);
 
     @Query("""
-            SELECT new com.ssafy.a203.domain.video.dto.response.VideoInfoResponse(
+            SELECT new com.kjlee.climbmate.domain.video.dto.response.VideoInfoResponse(
             v.id, v.createdAt, COALESCE(v.isAnalyzed, false),
             COALESCE(ei.isSuccesses, false), v.tFileKey
             )
@@ -46,7 +46,7 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     List<Video> findAllByTrialIdAndDeletedAtIsNull(Long trialId);
 
     @Query("""
-                    SELECT new com.ssafy.a203.domain.video.dto.VideoSummaryProjection(
+                    SELECT new com.kjlee.climbmate.domain.video.dto.VideoSummaryProjection(
                     v.id, v.tFileKey, v.isAnalyzed, ei.isSuccesses
                     )
                     FROM Video v

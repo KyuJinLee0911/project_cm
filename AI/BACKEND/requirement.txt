@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pillow==11.0.0
+opencv-python==4.10.0.84
+numpy==2.1.2
+redis==7.4.5
