@@ -37,7 +37,7 @@
 
 ### Database
 - PostgreSQL
-- Redis (토큰 관리 & Pub/Sub)
+- Redis (토큰 관리 & Stream)
 
 ### Cloud & Storage
 - AWS S3 (영상/이미지 저장)
@@ -45,7 +45,7 @@
 
 ### Real-time
 - WebSocket (STOMP)
-- Redis Pub/Sub
+- Redis Stream (AI 서버 ↔ Backend 비동기 메시지)
 
 ### Documentation
 - SpringDoc OpenAPI (Swagger UI)
@@ -105,8 +105,14 @@ src/main/java/com/ssafy/a203
 
 ### 5. AI 자세 분석
 - 운동 영상 기반 자세 분석
-- WebSocket + Redis Pub/Sub 실시간 결과 전송
+- WebSocket + Redis Stream 실시간 결과 전송
 - 비동기 분석 작업 큐 관리
+
+### 6. Redis Stream 기반 AI 서버 연동
+- **Consumer Group** 기반 메시지 관리
+- **@Scheduled polling** 방식으로 메시지 수신 (500ms 간격)
+- **ACK 메커니즘**으로 처리 완료 확인
+- **Pending 메시지 재처리** 지원
 
 ## API 엔드포인트
 
@@ -250,3 +256,45 @@ AI_BASE_URL=
 
 서버 실행 후 Swagger UI에서 API 문서를 확인할 수 있습니다.
 - URL: `http://localhost:8080/swagger-ui.html`
+
+## Redis Stream 연동
+
+### 아키텍처
+
+```
+AI Server (Python)                    Backend (Spring Boot)
+       │                                      │
+       │  XADD ai_job_result_stream           │
+       ├─────────────────────────────────────→│
+       │                                      │ @Scheduled polling (500ms)
+       │                                      │ XREADGROUP
+       │                                      │ 메시지 처리
+       │                                      │ XACK
+```
+
+### 주요 컴포넌트
+
+| 클래스 | 역할 |
+|--------|------|
+| `RedisStreamConfig` | Stream polling 및 Consumer Group 관리 |
+| `AiJobStreamListener` | 메시지 처리 및 WebSocket 전송 |
+
+### 메시지 형식
+
+```json
+{
+  "job_id": "uuid",
+  "eventType": "status | result | error",
+  "timestamp": "2024-01-01T12:00:00",
+  "data": "{...}"
+}
+```
+
+### Redis Stream vs Pub/Sub
+
+| 항목 | Pub/Sub (이전) | Stream (현재) |
+|------|----------------|---------------|
+| 메시지 영속성 | 없음 | 있음 |
+| Consumer 오프라인 | 메시지 유실 | 나중에 수신 가능 |
+| 재처리 | 불가능 | Pending에서 재처리 |
+| ACK | 없음 | 지원 |
